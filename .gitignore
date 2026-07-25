@@ -1,0 +1,13 @@
+node_modules/
+dist/
+*.local
+.env
+.env.*
+.DS_Store
+*.log
+npm-debug.log*
+.vite/
+coverage/
+
+# office-addin-dev-certs output, if ever emitted locally
+certs/
