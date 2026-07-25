@@ -17,18 +17,25 @@ host, or a human before AppSource submission.
       (~200 kB gzip main chunk).
 - [x] Vercel static hosting config — `vercel.json`.
 
-## Needs real values before submission (business / deployment)
+## Hosting — DONE
 
-- [ ] **Hosting origin.** Replace every `https://stylesmith.vercel.app` in
-      `manifest/manifest.xml` with the deployed origin. Deploy with `npm run build`
-      → Vercel (config provided).
-- [ ] **PNG icons.** Export `public/assets/logo.svg` to
-      `icon-16.png`, `icon-32.png`, `icon-64.png`, `icon-80.png` (Office ribbon
-      icons must be PNG). Place in `public/assets/`.
+- [x] **Hosted on GitHub Pages**: <https://prabhu-phd.github.io/stylesmith/>.
+      Repo <https://github.com/Prabhu-PhD/stylesmith>, auto-deployed by
+      `.github/workflows/deploy.yml` on every push to `main`. Vite `base` is
+      `/stylesmith/` for builds; the prod manifest points at this origin.
+      (Verified live: taskpane/support/commands/icons all return 200 and the
+      panel mounts from the Pages URL.)
+- [x] **PNG icons** at `public/assets/icon-16|32|64|80.png` (generated from
+      `logo.svg`), served under `/stylesmith/assets/`.
+
+## Needs real values before submission (business)
+
 - [ ] **Production Id.** Confirm/replace the `<Id>` GUID as the canonical AppSource id.
-- [ ] **Contact address** in `privacy.html` / `support.html` and the manifest `SupportUrl`.
+- [ ] **Contact address** in `privacy.html` / `support.html` (currently a placeholder).
 - [ ] **AppSource listing assets**: screenshots (1366×768 recommended), a 300×300
       store logo, category, and long description.
+- [ ] Optional: move to a **custom domain** (then update the manifest URLs and set
+      Vite `base` back to `/`).
 
 ## Needs a host / validation run (cannot be done headlessly)
 
