@@ -403,7 +403,8 @@ export const useStore = create<StoreState>((set, get) => ({
       set({ notice: "Select one or more shapes first." });
       return;
     }
-    await get().apply(styleId, { kind: "shapes", shapeIds: ids }, { preserveOverrides: true });
+    // A direct apply to the selection is a fresh link — nothing to preserve.
+    await get().apply(styleId, { kind: "shapes", shapeIds: ids }, { preserveOverrides: false });
   },
 
   dismissOperation: () => set({ operation: null }),

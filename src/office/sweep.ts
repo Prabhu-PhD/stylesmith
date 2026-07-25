@@ -16,7 +16,7 @@
  * module only reads/writes shapes and orchestrates chunks.
  */
 import { runPowerPoint, OperationCancelled } from "./context";
-import { readStyleId } from "./tags";
+import { readStyleId, queueTagWrite } from "./tags";
 import { ensureDocumentDirty } from "./storage";
 import {
   isSupportedTarget,
@@ -130,9 +130,15 @@ export async function runSweep(
     all.forEach(({ shape }) => shape.tags.load("items/key,items/value"));
     await ctx.sync();
 
-    const targets = all.filter(
-      ({ shape, slideIndex }) =>
-        readStyleId(shape) === styleId && inScope(shape.id, slideIndex, scope),
+    // "shapes" scope (Apply to selection, near-match link+normalise) targets the
+    // given shapes REGARDLESS of their current tag — they get linked below. This
+    // is what applies a style to newly-selected, not-yet-linked shapes (AC2.1).
+    // Deck/slides scope re-applies to shapes already carrying the style.
+    const explicitIds = scope.kind === "shapes" ? new Set(scope.shapeIds) : null;
+    const targets = all.filter(({ shape, slideIndex }) =>
+      explicitIds
+        ? explicitIds.has(shape.id)
+        : readStyleId(shape) === styleId && inScope(shape.id, slideIndex, scope),
     );
 
     // 2 — chunked apply.
@@ -178,6 +184,10 @@ export async function runSweep(
         if (geometrySkipped) skippedGeometryShapes += 1;
         if (wroteShape) applied += 1;
 
+        // Link the shape to this style. Idempotent on re-apply; replaces a
+        // different style's tag (AC2.5). This is what makes "Apply to selection"
+        // link new shapes instead of silently skipping them.
+        queueTagWrite(shape, styleId);
         // Record what we (would have) set so later applies can detect overrides.
         queueSnapshotWrite(shape, plan.nextSnapshot);
         anyWrite = true;

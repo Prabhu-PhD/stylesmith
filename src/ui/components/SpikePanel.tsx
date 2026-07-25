@@ -80,12 +80,15 @@ async function runSweepApply(): Promise<SpikeResult> {
 async function runSweepCancel(): Promise<SpikeResult> {
   const controller = new AbortController();
   let armed = true;
+  // Small chunks so there are multiple chunks to cancel between — even on a
+  // small scratch deck. (Real applies use chunk 50.)
+  const CHUNK = 2;
   const r = await officeBridge.applyStyle(
     SWEEP_STYLE_ID,
     { kind: "deck" },
     {
       preserveOverrides: false,
-      chunkSize: 50,
+      chunkSize: CHUNK,
       signal: controller.signal,
       onProgress: () => {
         if (armed) {
@@ -97,12 +100,18 @@ async function runSweepCancel(): Promise<SpikeResult> {
   );
   if (!r.ok) return { ok: false, lines: [`apply failed: ${JSON.stringify(r.error)}`] };
   const s = r.value;
+  const multiChunk = s.matched > CHUNK;
   return {
-    ok: s.cancelled,
-    lines: [
-      `cancelled: ${s.cancelled} (expected true)`,
-      `applied before stop: ${s.applied} of matched ${s.matched} — stopped at a chunk boundary`,
-    ],
+    ok: multiChunk ? s.cancelled : true,
+    lines: multiChunk
+      ? [
+          `cancelled: ${s.cancelled} (expected true)`,
+          `applied ${s.applied} of ${s.matched} before stopping at a chunk boundary`,
+        ]
+      : [
+          `Only ${s.matched} shape(s) — that's a single chunk (size ${CHUNK}), so there's nothing to cancel.`,
+          "Run 'prep: link all shapes' on a deck with more shapes, then retry to see cancellation.",
+        ],
   };
 }
 
@@ -142,25 +151,53 @@ async function runWriteSample(): Promise<SpikeResult> {
   };
 }
 
+/** Order-independent stringify so key ordering (Zod re-parse) can't cause a false mismatch. */
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return "[" + value.map(stableStringify).join(",") + "]";
+  const obj = value as Record<string, unknown>;
+  return (
+    "{" +
+    Object.keys(obj)
+      .sort()
+      .map((k) => JSON.stringify(k) + ":" + stableStringify(obj[k]))
+      .join(",") +
+    "}"
+  );
+}
+
 async function runReadCompare(): Promise<SpikeResult> {
   const r = await officeBridge.loadDocument();
   if (!r.ok) return { ok: false, lines: [`load failed: ${JSON.stringify(r.error)}`] };
-  if (r.value === null) return { ok: false, lines: ["No document stored — run 'write sample' first."] };
+  if (r.value === null) {
+    return {
+      ok: false,
+      lines: [
+        "NOT PERSISTED — no document was stored.",
+        "If you ran 'write sample' then closed & reopened, document.settings did NOT survive on this host.",
+      ],
+    };
+  }
 
-  const actual = JSON.stringify(r.value);
-  const expected = JSON.stringify(buildSampleDocument());
+  const actual = stableStringify(r.value);
+  const expected = stableStringify(buildSampleDocument());
   if (actual === expected) {
     return {
       ok: true,
       lines: [
-        "ROUND-TRIP OK — loaded document is byte-identical to what was written.",
+        "ROUND-TRIP OK — the stored document was read back identical (key order aside).",
         `styles: ${r.value.styles.length}, tokenSets: ${r.value.tokenSets.length}`,
       ],
     };
   }
   return {
     ok: false,
-    lines: ["MISMATCH — loaded document differs from expected.", `expected: ${expected}`, `actual:   ${actual}`],
+    lines: [
+      "MISMATCH — a document was stored but differs from what was written.",
+      `loaded styles: ${r.value.styles.length}, tokenSets: ${r.value.tokenSets.length}`,
+      `expected: ${expected}`,
+      `actual:   ${actual}`,
+    ],
   };
 }
 
